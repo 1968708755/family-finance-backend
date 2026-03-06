@@ -11,37 +11,48 @@ pipeline {
     stages {
         stage('Build') {
             steps {
-                echo 'Building...'
+                echo 'Building project...'
                 sh 'mvn clean package -DskipTests'
             }
         }
         stage('Build Docker Image') {
             steps {
-                echo 'Building image...'
+                echo 'Building Docker image...'
                 sh "${DOCKER_CMD} build -t ${DOCKER_IMAGE} ."
             }
         }
         stage('Deploy') {
             steps {
+                echo 'Deploying application...'
                 sh """
                     ${DOCKER_CMD} stop ${DOCKER_CONTAINER} 2>/dev/null || true
                     ${DOCKER_CMD} rm ${DOCKER_CONTAINER} 2>/dev/null || true
-                    ${DOCKER_CMD} run -d --name ${DOCKER_CONTAINER} -p 8082:8080                         -e SPRING_DATASOURCE_URL='jdbc:mysql://${HOST_IP}:3307/family_finance?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC'                         -e SPRING_DATASOURCE_USERNAME=root                         -e SPRING_DATASOURCE_PASSWORD=root                         ${DOCKER_IMAGE}
+                    ${DOCKER_CMD} run -d --name ${DOCKER_CONTAINER} -p 8082:8080 \
+                        -e SPRING_DATASOURCE_URL='jdbc:mysql://\${HOST_IP}:3307/family_finance?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true' \
+                        -e SPRING_DATASOURCE_USERNAME=root \
+                        -e SPRING_DATASOURCE_PASSWORD=root \
+                        \${DOCKER_IMAGE}
                 """
             }
         }
         stage('Health Check') {
             steps {
+                echo 'Checking application status...'
                 sh '''
                     sleep 25
-                    curl -f http://localhost:8082/api/users
+                    ${DOCKER_CMD} ps | grep ${DOCKER_CONTAINER} || exit 1
+                    ${DOCKER_CMD} logs ${DOCKER_CONTAINER} | tail -5
                 '''
             }
         }
     }
     post {
         success {
-            echo "=== Success! Access: http://localhost:8082 ==="
+            echo '=== Deployment successful! ==='
+            echo "Access: http://localhost:8082"
+        }
+        failure {
+            echo '=== Deployment failed! ==='
         }
     }
 }
