@@ -28,11 +28,10 @@ pipeline {
                     export DOCKER_CMD="${DOCKER_CMD}"
                     export DOCKER_IMAGE="${DOCKER_IMAGE}"
                     export DOCKER_CONTAINER="${DOCKER_CONTAINER}"
-                    export HOST_IP="${HOST_IP}"
                     \$DOCKER_CMD stop \$DOCKER_CONTAINER 2>/dev/null || true
                     \$DOCKER_CMD rm \$DOCKER_CONTAINER 2>/dev/null || true
                     \$DOCKER_CMD run -d --name \$DOCKER_CONTAINER -p 8082:8080 \
-                        -e SPRING_DATASOURCE_URL='jdbc:mysql://\$HOST_IP:3307/family_finance?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true' \
+                        -e SPRING_DATASOURCE_URL='jdbc:mysql://${HOST_IP}:3307/family_finance?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true' \
                         -e SPRING_DATASOURCE_USERNAME=root \
                         -e SPRING_DATASOURCE_PASSWORD=root \
                         \$DOCKER_IMAGE
