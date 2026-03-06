@@ -1,81 +1,47 @@
 pipeline {
     agent any
-
     environment {
         MAVEN_HOME = '/var/jenkins_home/tools/maven'
         PATH = "${MAVEN_HOME}/bin:${env.PATH}"
         DOCKER_IMAGE = "family-finance-backend:${BUILD_NUMBER}"
+        DOCKER_CMD = "/usr/local/bin/docker"
         DOCKER_CONTAINER = "family-finance-app"
+        HOST_IP = "10.71.80.15"
     }
-
     stages {
         stage('Build') {
             steps {
-                echo '构建项目...'
-                sh '''
-                    echo "Maven 版本:"
-                    mvn -version
-                    echo "开始构建..."
-                    mvn clean package -DskipTests
-                '''
+                echo 'Building...'
+                sh 'mvn clean package -DskipTests'
             }
         }
-
         stage('Build Docker Image') {
             steps {
-                echo '构建 Docker 镜像...'
-                sh """
-                    docker build -t ${DOCKER_IMAGE} .
-                    docker images | grep family-finance
-                """
+                echo 'Building image...'
+                sh "${DOCKER_CMD} build -t ${DOCKER_IMAGE} ."
             }
         }
-
         stage('Deploy') {
             steps {
-                echo '部署应用...'
                 sh """
-                    # 停止并删除旧容器
-                    docker stop ${DOCKER_CONTAINER} 2>/dev/null || true
-                    docker rm ${DOCKER_CONTAINER} 2>/dev/null || true
-
-                    # 启动新容器
-                    docker run -d \
-                        --name ${DOCKER_CONTAINER} \
-                        -p 8082:8080 \
-                        --network bridge \
-                        ${DOCKER_IMAGE}
-
-                    echo "容器已启动: ${DOCKER_CONTAINER}"
+                    ${DOCKER_CMD} stop ${DOCKER_CONTAINER} 2>/dev/null || true
+                    ${DOCKER_CMD} rm ${DOCKER_CONTAINER} 2>/dev/null || true
+                    ${DOCKER_CMD} run -d --name ${DOCKER_CONTAINER} -p 8082:8080                         -e SPRING_DATASOURCE_URL='jdbc:mysql://${HOST_IP}:3307/family_finance?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC'                         -e SPRING_DATASOURCE_USERNAME=root                         -e SPRING_DATASOURCE_PASSWORD=root                         ${DOCKER_IMAGE}
                 """
             }
         }
-
         stage('Health Check') {
             steps {
-                echo '等待应用启动...'
                 sh '''
-                    sleep 15
-                    echo "检查容器状态..."
-                    docker ps | grep ${DOCKER_CONTAINER}
-                    echo "检查应用日志..."
-                    docker logs ${DOCKER_CONTAINER} | tail -30
+                    sleep 25
+                    curl -f http://localhost:8082/api/users
                 '''
             }
         }
     }
-
     post {
         success {
-            echo '=== 部署成功！==='
-            echo "访问地址: http://localhost:8082"
-        }
-        failure {
-            echo '=== 部署失败！==='
-            sh """
-                docker stop ${DOCKER_CONTAINER} 2>/dev/null || true
-                docker rm ${DOCKER_CONTAINER} 2>/dev/null || true
-            """
+            echo "=== Success! Access: http://localhost:8082 ==="
         }
     }
 }
